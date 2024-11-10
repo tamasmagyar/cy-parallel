@@ -1,6 +1,6 @@
 {
   "name": "cy-parallel",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "packageManager": "yarn@4.5.1",
   "main": "dist/index.js",
   "bin": "dist/run-parallel.js",

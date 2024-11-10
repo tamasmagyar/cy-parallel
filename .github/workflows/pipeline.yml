@@ -31,7 +31,7 @@ jobs:
     needs: lint
     runs-on: ubuntu-latest
     env:
-      WORKERS: 2
+      WORKERS: 1
       REPORT_DIR: 'cypress/reports'
     steps:
       - name: Check out the repository
