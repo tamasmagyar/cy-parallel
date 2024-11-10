@@ -21,3 +21,4 @@ dist
 node_modules
 
 cypress/reports
+cypress/videos

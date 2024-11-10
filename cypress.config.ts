@@ -6,6 +6,7 @@ export default defineConfig({
       // implement node event listeners here
     },
     reporter: 'mochawesome',
+    video: true,
     reporterOptions: {
       reportDir: 'cypress/reports',
       overwrite: false,
