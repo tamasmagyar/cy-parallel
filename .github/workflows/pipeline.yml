@@ -28,11 +28,13 @@ jobs:
         run: yarn lint
 
   test:
-    needs: lint
     runs-on: ubuntu-latest
     env:
       WORKERS: 2
       REPORT_DIR: 'cypress/reports'
+      POLL: 'false'
+      WEIGHT_PER_TEST: 1
+      BASE_WEIGHT: 1
     steps:
       - name: Check out the repository
         uses: actions/checkout@v2
@@ -48,8 +50,35 @@ jobs:
       - name: Install dependencies
         run: yarn install
 
-      - name: Run Cypress tests in parallel
+      - name: Run Cypress tests in parallel (POLL=false)
         run: yarn ts-node src/run-parallel.ts
 
-      - name: Generate report
+      - name: Generate report (POLL=false)
+        run: yarn cy:report
+
+  test_poll:
+    runs-on: ubuntu-latest
+    env:
+      WORKERS: 2
+      REPORT_DIR: 'cypress/reports'
+      POLL: 'true'
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '20.16.0'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Run Cypress tests in parallel (POLL=true)
+        run: yarn ts-node src/run-parallel.ts
+
+      - name: Generate report (POLL=true)
         run: yarn cy:report
