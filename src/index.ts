@@ -1,10 +1,10 @@
 // src/index.ts
 import os from 'os';
 import process from 'process';
-import { validateDir, collectTestFiles } from './utils/fileUtils';
-import { getFileInfo } from './utils/weightUtils';
-import { runCypress } from './runners/cypressRunner';
-import { runCypressSingle } from './runners/cypressSingleRunner';
+import { validateDir, collectTestFiles } from './utils/fileUtils.js';
+import { getFileInfo } from './utils/weightUtils.js';
+import { runCypress } from './runners/cypressRunner.js';
+import { runCypressSingle } from './runners/cypressSingleRunner.js';
 import { FileInfo, CypressResult } from './types';
 
 /**

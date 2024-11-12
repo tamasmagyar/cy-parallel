@@ -1,6 +1,6 @@
 // src/runners/cypressRunner.ts
 import { spawn, ChildProcess } from 'child_process';
-import { startXvfb } from '../utils/xvfb';
+import { startXvfb } from '../utils/xvfb.js';
 
 export interface CypressResult {
   status: 'fulfilled' | 'rejected';

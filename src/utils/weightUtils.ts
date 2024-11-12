@@ -2,7 +2,7 @@
 import fs from 'fs';
 import ts from 'typescript';
 import { FileInfo } from '../types';
-import { isCallTo } from './isCallTo';
+import { isCallTo } from './isCallTo.js';
 
 /**
  * Calculates the weight of a test file based on the number of active (non-skipped) 'it' blocks.

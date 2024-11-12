@@ -1,12 +1,15 @@
 {
-    "compilerOptions": {
-      "target": "ES6",
-      "module": "commonjs",
-      "outDir": "dist",
-      "rootDir": "src",
-      "strict": true,
-      "esModuleInterop": true
-    },
-    "include": ["src"]
-  }
-  
+  "compilerOptions": {
+    "target": "ES2020",                         // or higher, e.g., ES2022
+    "module": "ESNext",                         // Use 'ESNext' for ESM
+    "moduleResolution": "node",                 // Node.js module resolution
+    "outDir": "./dist",                         // Output directory for compiled JS
+    "rootDir": "./src",                         // Root directory of your TS files
+    "strict": true,                             // Enable strict type-checking
+    "esModuleInterop": true,                    // Enable interoperability between CommonJS and ESM
+    "forceConsistentCasingInFileNames": true,   // Ensure consistent casing in imports
+    "skipLibCheck": true                        // Skip type checking of declaration files
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
