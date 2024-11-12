@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -23,6 +23,11 @@ const COMMAND: string = process.env.COMMAND
   ? process.env.COMMAND
   : 'npx cypress run';
 const POLL: boolean = process.env.POLL === 'true';
+
+// Base display number for Xvfb
+const BASE_DISPLAY_NUMBER: number = process.env.BASE_DISPLAY_NUMBER
+  ? parseInt(process.env.BASE_DISPLAY_NUMBER, 10)
+  : 99;
 
 /**
  * Resolves and validates the directory path.
@@ -175,7 +180,7 @@ export const getFileInfo = (
  * @returns {string[]} - An array of valid test file paths.
  */
 function collectTestFiles(directory: string): string[] {
-  // Use the custom gettestFiles function to find test files
+  // Use the custom getTestFiles function to find test files
   const testFiles: string[] = getTestFiles(directory);
 
   if (testFiles.length === 0) {
@@ -244,49 +249,98 @@ export const getFileBuckets = (
 };
 
 /**
+ * Starts an Xvfb instance on the specified display.
+ * @param {number} display - The display number to use (e.g., 99 for :99).
+ * @returns {Promise<ChildProcess>} - The spawned Xvfb process.
+ */
+async function startXvfb(display: number): Promise<ChildProcess> {
+  const xvfbProcess: ChildProcess = spawn('Xvfb', [`:${display}`], {
+    stdio: 'ignore', // Ignore stdio since we don't need to interact with Xvfb
+    detached: true, // Run Xvfb in its own process group
+  });
+
+  xvfbProcess.unref(); // Allow the parent process to exit independently of the Xvfb process
+
+  // Give Xvfb some time to start
+  await new Promise<void>((resolve, reject) => {
+    setTimeout(() => {
+      try {
+        resolve();
+      } catch (err) {
+        reject(
+          new Error(
+            `Failed to start Xvfb on display :${display}, error: ${err}`
+          )
+        );
+      }
+    }, 1000); // Wait 1 second
+  });
+
+  return xvfbProcess;
+}
+
+/**
  * Runs the Cypress command for a given set of test files with a unique display.
+ * Starts an Xvfb instance for the specified display before running Cypress.
+ * Ensures that Xvfb is terminated after Cypress completes.
  * @param {string[]} tests - Array of test file paths.
  * @param {number} index - Index of the parallel process.
+ * @param {number} display - Display number for Xvfb.
  * @returns {Promise<CypressResult>}
  */
-function runCypress(tests: string[], index: number): Promise<CypressResult> {
-  return new Promise((resolve) => {
-    const env: NodeJS.ProcessEnv = { ...process.env };
-
-    const testList: string = tests.join(',');
-    const command: string = `FORCE_COLOR=1 ${COMMAND} --spec "${testList}"`;
+async function runCypress(
+  tests: string[],
+  index: number,
+  display: number
+): Promise<CypressResult> {
+  try {
+    // Start Xvfb for this Cypress process
+    const xvfb = await startXvfb(display);
     console.log(
-      `\nStarting Cypress process ${index + 1} for the following tests:\n${testList}\n`
+      `\nXvfb started on display :${display} for process ${index + 1}.\n`
     );
 
-    const cypressProcess = spawn(command, {
+    const env: NodeJS.ProcessEnv = { ...process.env, DISPLAY: `:${display}` };
+
+    const testList: string = tests.join(',');
+    const command: string = `${COMMAND} --spec "${testList}"`;
+    console.log(
+      `\nStarting Cypress process ${index + 1} on display :${display} for the following tests:\n${testList}\n`
+    );
+
+    const cypressProcess: ChildProcess = spawn(command, {
       shell: true,
       env: env,
-      stdio: 'inherit', // This will directly pipe the output to the terminal in real-time
+      stdio: 'inherit', // Inherit stdio to show Cypress output in real-time
     });
 
     // Handle Cypress process completion
-    cypressProcess.on('close', (code: number) => {
-      if (code !== 0) {
-        console.error(
-          `\nCypress process ${index + 1} failed with exit code ${code}.\n`
-        );
-        resolve({ status: 'rejected', index, code });
-      } else {
-        console.log(`\nCypress process ${index + 1} completed successfully.\n`);
-        resolve({ status: 'fulfilled', index, code });
-      }
+    const exitCode: number = await new Promise<number>((resolve, reject) => {
+      cypressProcess.on('close', (code: number) => {
+        resolve(code);
+      });
+
+      cypressProcess.on('error', (err: Error) => {
+        reject(err);
+      });
     });
 
-    // Handle errors during spawning
-    cypressProcess.on('error', (err: Error) => {
+    if (exitCode !== 0) {
       console.error(
-        `\nCypress process ${index + 1} encountered an error.\n`,
-        err
+        `\nCypress process ${index + 1} failed with exit code ${exitCode}.\n`
       );
-      resolve({ status: 'rejected', index });
-    });
-  });
+      return { status: 'rejected', index, code: exitCode };
+    } else {
+      console.log(`\nCypress process ${index + 1} completed successfully.\n`);
+      return { status: 'fulfilled', index, code: exitCode };
+    }
+  } catch (error) {
+    console.error(
+      `\nThere was a problem running Cypress process ${index + 1}.\n`,
+      error
+    );
+    return { status: 'rejected', index };
+  }
 }
 
 interface CypressResult {
@@ -297,43 +351,63 @@ interface CypressResult {
 
 /**
  * Runs a single Cypress test file.
+ * Starts an Xvfb instance for the specified display before running Cypress.
+ * Ensures that Xvfb is terminated after Cypress completes.
  * @param {string} test - The test file path.
  * @param {number} index - The worker index.
+ * @param {number} display - Display number for Xvfb.
  * @returns {Promise<CypressResult>}
  */
-function runCypressSingle(test: string, index: number): Promise<CypressResult> {
-  return new Promise((resolve) => {
-    const env: NodeJS.ProcessEnv = { ...process.env };
+async function runCypressSingle(
+  test: string,
+  index: number,
+  display: number
+): Promise<CypressResult> {
+  try {
+    // Start Xvfb for this Cypress process
+    const xvfb = await startXvfb(display);
+    console.log(
+      `\nXvfb started on display :${display} for worker ${index + 1}.\n`
+    );
 
-    const command: string = `FORCE_COLOR=1 ${COMMAND} --spec "${test}"`;
+    const env: NodeJS.ProcessEnv = { ...process.env, DISPLAY: `:${display}` };
+
+    const command: string = `${COMMAND} --spec "${test}"`;
     console.log(`\nWorker ${index + 1} starting Cypress for test:\n${test}\n`);
 
-    const cypressProcess = spawn(command, {
+    const cypressProcess: ChildProcess = spawn(command, {
       shell: true,
       env: env,
-      stdio: 'inherit',
+      stdio: 'inherit', // Inherit stdio to show Cypress output in real-time
     });
 
-    cypressProcess.on('close', (code: number) => {
-      if (code !== 0) {
-        console.error(
-          `\nWorker ${index + 1} Cypress failed with exit code ${code}.\n`
-        );
-        resolve({ status: 'rejected', index, code });
-      } else {
-        console.log(`\nWorker ${index + 1} Cypress completed successfully.\n`);
-        resolve({ status: 'fulfilled', index, code });
-      }
+    // Handle Cypress process completion
+    const exitCode: number = await new Promise<number>((resolve, reject) => {
+      cypressProcess.on('close', (code: number) => {
+        resolve(code);
+      });
+
+      cypressProcess.on('error', (err: Error) => {
+        reject(err);
+      });
     });
 
-    cypressProcess.on('error', (err: Error) => {
+    if (exitCode !== 0) {
       console.error(
-        `\nWorker ${index + 1} Cypress encountered an error.\n`,
-        err
+        `\nWorker ${index + 1} Cypress failed with exit code ${exitCode}.\n`
       );
-      resolve({ status: 'rejected', index });
-    });
-  });
+      return { status: 'rejected', index, code: exitCode };
+    } else {
+      console.log(`\nWorker ${index + 1} Cypress completed successfully.\n`);
+      return { status: 'fulfilled', index, code: exitCode };
+    }
+  } catch (error) {
+    console.error(
+      `\nThere was a problem running Cypress for worker ${index + 1}.\n`,
+      error
+    );
+    return { status: 'rejected', index };
+  }
 }
 
 /**
@@ -343,7 +417,7 @@ async function runParallelCypress(): Promise<void> {
   // Validate and resolve DIR
   const resolvedDir: string = validateDir(DIR);
 
-  // Step 1: Collect all test files in the testified directory
+  // Step 1: Collect all test files in the specified directory
   const testFiles: string[] = collectTestFiles(resolvedDir);
 
   if (!POLL) {
@@ -353,34 +427,25 @@ async function runParallelCypress(): Promise<void> {
     const testBuckets: string[][] = getFileBuckets(WORKERS, testFiles);
     const promises: Promise<CypressResult>[] = [];
 
-    // Step 3: Start Cypress processes in parallel for each bucket
+    // Step 3: Start Cypress processes in parallel for each bucket with unique display numbers
     testBuckets.forEach((bucket, index) => {
       if (bucket.length > 0) {
-        promises.push(runCypress(bucket, index));
+        const display = BASE_DISPLAY_NUMBER + index;
+        promises.push(runCypress(bucket, index, display));
       }
     });
 
-    const results: PromiseSettledResult<CypressResult>[] =
-      await Promise.allSettled(promises);
+    const results = await Promise.all(promises);
 
     let hasFailures: boolean = false;
     results.forEach((result) => {
-      if (result.status === 'fulfilled') {
-        const value = result.value;
-        if (value.status === 'rejected') {
-          hasFailures = true;
-          console.error(
-            `\nCypress process ${value.index + 1} failed with exit code ${value.code}.\n`
-          );
-        } else {
-          console.log(`\nCypress process ${value.index + 1} succeeded.\n`);
-        }
-      } else {
+      if (result.status === 'rejected') {
         hasFailures = true;
         console.error(
-          `\nCypress process encountered an unexpected error.\n`,
-          result.reason
+          `\nCypress process ${result.index + 1} failed with exit code ${result.code}.\n`
         );
+      } else {
+        console.log(`\nCypress process ${result.index + 1} succeeded.\n`);
       }
     });
 
@@ -399,6 +464,7 @@ async function runParallelCypress(): Promise<void> {
 
     /**
      * Worker function that picks up test files from the queue and runs them.
+     * Each worker uses a unique display number.
      * @param {number} workerIndex - The index of the worker.
      * @returns {Promise<CypressResult>}
      */
@@ -417,7 +483,8 @@ async function runParallelCypress(): Promise<void> {
           break; // Queue is empty
         }
 
-        const result = await runCypressSingle(test, workerIndex);
+        const display = BASE_DISPLAY_NUMBER + workerIndex;
+        const result = await runCypressSingle(test, workerIndex, display);
         if (result.status === 'rejected') {
           hasFailed = true;
           // Optionally, handle individual test failures here
@@ -437,27 +504,18 @@ async function runParallelCypress(): Promise<void> {
       promises.push(worker(i));
     }
 
-    const results = await Promise.allSettled(promises);
+    const results = await Promise.all(promises);
 
     let hasFailures: boolean = false;
     results.forEach((result) => {
-      if (result.status === 'fulfilled') {
-        const value = result.value;
-        if (value.status === 'rejected') {
-          hasFailures = true;
-          console.error(
-            `\nWorker ${value.index + 1} had at least one failed Cypress run.\n`
-          );
-        } else {
-          console.log(
-            `\nWorker ${value.index + 1} completed all Cypress runs successfully.\n`
-          );
-        }
-      } else {
+      if (result.status === 'rejected') {
         hasFailures = true;
         console.error(
-          `\nA worker encountered an unexpected error.\n`,
-          result.reason
+          `\nWorker ${result.index + 1} had at least one failed Cypress run.\n`
+        );
+      } else {
+        console.log(
+          `\nWorker ${result.index + 1} completed all Cypress runs successfully.\n`
         );
       }
     });
