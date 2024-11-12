@@ -884,7 +884,7 @@ __metadata:
     typescript: "npm:^5.6.3"
     typescript-eslint: "npm:^8.13.0"
   bin:
-    cy-parallel: dist/run-parallel.js
+    cy-parallel: dist/index.js
   languageName: unknown
   linkType: soft
 
