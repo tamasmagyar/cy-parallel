@@ -254,7 +254,7 @@ function runCypress(tests: string[], index: number): Promise<CypressResult> {
     const env: NodeJS.ProcessEnv = { ...process.env };
 
     const testList: string = tests.join(',');
-    const command: string = `FORCE_COLOR=1 ${COMMAND} --test "${testList}"`;
+    const command: string = `FORCE_COLOR=1 ${COMMAND} --spec "${testList}"`;
     console.log(
       `\nStarting Cypress process ${index + 1} for the following tests:\n${testList}\n`
     );
