@@ -1,9 +1,24 @@
-# cy-parallel
+# Usage
 
 ```
 yarn add cy-parallel
-CYPRESS_COMMAND="npx run cypress" yarn cy-parallel
+COMMAND="npx run cypress" yarn cy-parallel
+
 ```
+
+# Environment Variables
+
+- `DIR`: Directory of tests (default: `cypress/e2e`).
+- `COMMAND`: Cypress command (default: `npx cypress run`).
+- `WORKERS`: Number of workers (default: CPU cores).
+- `POLL`: true for Polling Mode; else Weighted Bucketing.
+- `WEIGHT_PER_TEST`: Test weight (default: `1`).
+- `BASE_WEIGHT`: Base weight (default: `1`).
+
+## Modes
+
+Weighted Bucketing (default) `(POLL=false)`: Distributes tests evenly.
+Polling `(POLL=true)`: Start workers, worker get tests from a test file queue.
 
 # Reporting
 
