@@ -1,2 +1,2 @@
 yarn check-branch-name
-# yarn commitlint --edit $1
+yarn commitlint --edit $1
