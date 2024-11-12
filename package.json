@@ -1,6 +1,6 @@
 {
   "name": "cy-parallel",
-  "version": "0.1.15",
+  "version": "0.2.0",
   "packageManager": "yarn@4.5.1",
   "main": "dist/index.js",
   "bin": "dist/run-parallel.js",
@@ -11,7 +11,7 @@
     "lint": "eslint 'src/**/*.{js,ts}'",
     "lint:fix": "eslint 'src/**/*.{js,ts}' --fix",
     "build": "tsc",
-    "bp": "tsc && npm publish",
+    "publish:npm": "yarn build && yarn publish",
     "cy:report": "mochawesome-merge cypress/reports/*.json > cypress/reports/merged-report.json && npx mochawesome-report-generator cypress/reports/merged-report.json -o cypress/reports/merged-html-report"
   },
   "devDependencies": {
@@ -30,6 +30,7 @@
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.13.0"
   },
+  "license": "MIT",
   "publishConfig": {
     "registry": "http://localhost:4873"
   }
