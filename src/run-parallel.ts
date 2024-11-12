@@ -295,7 +295,7 @@ async function runCypress(
 ): Promise<CypressResult> {
   try {
     // Start Xvfb for this Cypress process
-    const xvfb = await startXvfb(display);
+    await startXvfb(display);
     console.log(
       `\nXvfb started on display :${display} for process ${index + 1}.\n`
     );
