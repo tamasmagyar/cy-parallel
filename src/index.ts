@@ -1,4 +1,4 @@
-// src/index.ts
+// #!/usr/bin/env node
 import os from 'os';
 import process from 'process';
 import { validateDir, collectTestFiles } from './utils/fileUtils';
