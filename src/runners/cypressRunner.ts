@@ -24,17 +24,16 @@ export async function runCypress(
   command: string
 ): Promise<CypressResult> {
   try {
-    const { CYPRESS_LOG } = getConfig();
-    const isLinux = process.platform === 'linux';
+    const { CYPRESS_LOG, IS_LINUX } = getConfig();
 
     // Start Xvfb only on Linux
-    if (isLinux) {
+    if (IS_LINUX) {
       await startXvfb(display);
     }
 
     const env: NodeJS.ProcessEnv = {
       ...process.env,
-      ...(isLinux ? { DISPLAY: `:${display}` } : {}),
+      ...(IS_LINUX ? { DISPLAY: `:${display}` } : {}),
     };
 
     const testList: string = tests.join(',');

@@ -10,6 +10,7 @@ export type Config = {
   BASE_DISPLAY_NUMBER: number;
   VERBOSE: boolean;
   CYPRESS_LOG: boolean;
+  IS_LINUX: boolean;
 };
 
 /**
@@ -57,5 +58,6 @@ export function getConfig(): Config {
     BASE_DISPLAY_NUMBER: getEnvVar('BASE_DISPLAY_NUMBER', 99),
     VERBOSE: getEnvVar('VERBOSE', true) as boolean,
     CYPRESS_LOG: getEnvVar('CYPRESS_LOG', true) as boolean,
+    IS_LINUX: process.platform === 'linux',
   };
 }
