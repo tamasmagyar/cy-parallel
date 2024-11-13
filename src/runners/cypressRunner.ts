@@ -1,4 +1,3 @@
-// src/runners/cypressRunner.ts
 import { spawn, ChildProcess } from 'child_process';
 import { startXvfb } from '../utils/xvfb';
 
@@ -23,13 +22,20 @@ export async function runCypress(
   command: string
 ): Promise<CypressResult> {
   try {
-    // Start Xvfb for this Cypress process
-    await startXvfb(display);
-    console.log(
-      `\nXvfb started on display :${display} for process ${index + 1}.\n`
-    );
+    const isLinux = process.platform === 'linux';
 
-    const env: NodeJS.ProcessEnv = { ...process.env, DISPLAY: `:${display}` };
+    // Start Xvfb only on Linux
+    if (isLinux) {
+      await startXvfb(display);
+      console.log(
+        `\nXvfb started on display :${display} for process ${index + 1}.\n`
+      );
+    }
+
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      ...(isLinux ? { DISPLAY: `:${display}` } : {}),
+    };
 
     const testList: string = tests.join(',');
     const cypressCommand: string = `${command} --spec "${testList}"`;
