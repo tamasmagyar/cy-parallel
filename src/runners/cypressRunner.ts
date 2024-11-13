@@ -1,5 +1,6 @@
 import { spawn, ChildProcess } from 'child_process';
 import { startXvfb } from '../utils/xvfb';
+import { log } from '../utils/logging';
 
 export interface CypressResult {
   status: 'fulfilled' | 'rejected';
@@ -27,9 +28,6 @@ export async function runCypress(
     // Start Xvfb only on Linux
     if (isLinux) {
       await startXvfb(display);
-      console.log(
-        `\nXvfb started on display :${display} for process ${index + 1}.\n`
-      );
     }
 
     const env: NodeJS.ProcessEnv = {
@@ -38,11 +36,12 @@ export async function runCypress(
     };
 
     const testList: string = tests.join(',');
-    const cypressCommand: string = `${command} --spec "${testList}"`;
-    console.log(
-      `\nStarting Cypress process ${index + 1} on display :${display} for the following tests:\n${testList}\n`
-    );
+    log(`Starting Cypress for the following tests:\n${testList}`, {
+      type: 'info',
+      workerId: index + 1,
+    });
 
+    const cypressCommand: string = `${command} --spec "${testList}"`;
     const cypressProcess: ChildProcess = spawn(cypressCommand, {
       shell: true,
       env: env,
@@ -61,18 +60,25 @@ export async function runCypress(
     });
 
     if (exitCode !== 0) {
-      console.error(
-        `\nCypress process ${index + 1} failed with exit code ${exitCode}.\n`
-      );
+      log(`Cypress process ${index + 1} failed with exit code ${exitCode}.`, {
+        type: 'error',
+        workerId: index + 1,
+      });
       return { status: 'rejected', index, code: exitCode };
     } else {
-      console.log(`\nCypress process ${index + 1} completed successfully.\n`);
+      log(`Cypress process ${index + 1} completed successfully.`, {
+        type: 'success',
+        workerId: index + 1,
+      });
       return { status: 'fulfilled', index, code: exitCode };
     }
   } catch (error) {
-    console.error(
-      `\nThere was a problem running Cypress process ${index + 1}.\n`,
-      error
+    log(
+      `There was a problem running Cypress process ${index + 1}. Error: ${error}`,
+      {
+        type: 'error',
+        workerId: index + 1,
+      }
     );
     return { status: 'rejected', index };
   }

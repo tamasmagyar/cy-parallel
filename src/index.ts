@@ -6,6 +6,7 @@ import { getFileInfo } from './utils/weightUtils';
 import { runCypress } from './runners/cypressRunner';
 import { runCypressSingle } from './runners/cypressSingleRunner';
 import { FileInfo, CypressResult } from './types';
+import { log } from './utils/logging';
 
 /**
  * Distributes test files into buckets to balance the total weight of each bucket.
@@ -18,11 +19,11 @@ function getFileBucketsCustom(
   filesInfo: FileInfo[]
 ): string[][] {
   if (!Array.isArray(filesInfo)) {
-    console.error('Error: filesInfo is not an array.');
+    log('Error: filesInfo is not an array.', { type: 'error' });
     return [];
   }
 
-  console.log(`\nTotal Test Files Found: ${filesInfo.length}\n`);
+  log(`Total Test Files Found: ${filesInfo.length}`, { type: 'info' });
 
   // Sort files by descending weight (heaviest first)
   const sortedFiles = filesInfo.sort((a, b) => b.weight - a.weight);
@@ -52,10 +53,13 @@ function getFileBucketsCustom(
         acc + (filesInfo.find((f) => f.file === file)?.weight || 0),
       0
     );
-    console.log(
-      `\nBucket ${idx + 1}: ${bucket.length} test files, weight: ${totalWeight}`
+    log(
+      `Bucket ${idx + 1}: ${bucket.length} test files, weight: ${totalWeight}`,
+      {
+        type: 'info',
+      }
     );
-    bucket.forEach((test) => console.log(`  - ${test}`));
+    bucket.forEach((test) => log(`  - ${test}`, { type: 'info' }));
   });
 
   return buckets;
@@ -96,21 +100,48 @@ async function runParallelCypress(): Promise<void> {
   // Step 1: Collect all test files in the specified directory
   const testFiles: string[] = collectTestFiles(resolvedDir);
 
+  // Track the total number of tests for progress indication
+  const totalTests = testFiles.length;
+  let completedTests = 0;
+
+  function logProgress() {
+    if (completedTests >= totalTests) {
+      return; // Skip logging if all tests are complete
+    }
+    const remainingTests = totalTests - completedTests;
+    const progressPercentage = ((completedTests / totalTests) * 100).toFixed(2);
+    log(
+      `Progress: ${completedTests}/${totalTests} tests completed (${progressPercentage}% done). ${remainingTests} test file(s) remaining.`,
+      { type: 'info' }
+    );
+  }
+
   if (!POLL) {
     // POLL=false: Weighted Bucketing Mode
-    console.log('Running in Weighted Bucketing Mode.\n');
-    // Step 2: Calculate weights for each test file
+    log('Running in Weighted Bucketing Mode.', { type: 'info' });
     const filesInfo: FileInfo[] = testFiles
       .map((file) => getFileInfo(file, BASE_WEIGHT, WEIGHT_PER_TEST))
       .filter((info): info is FileInfo => info !== null);
 
-    // Step 3: Split test files into WORKERS buckets based on test counts for balanced execution
     const testBuckets: string[][] = getFileBucketsCustom(WORKERS, filesInfo);
     const promises: Promise<CypressResult>[] = testBuckets.map(
-      (bucket, index) => {
+      async (bucket, index) => {
         if (bucket.length > 0) {
           const display = BASE_DISPLAY_NUMBER + index;
-          return runCypress(bucket, index, display, COMMAND);
+          log(
+            `Starting Cypress process ${index + 1} with ${bucket.length} test file(s).`,
+            {
+              type: 'info',
+              workerId: index + 1,
+            }
+          );
+          const result = await runCypress(bucket, index, display, COMMAND);
+
+          // Increment completed tests after the whole bucket completes
+          completedTests += bucket.length;
+          logProgress(); // Log progress here after bucket completion
+
+          return result;
         }
         return Promise.resolve({ status: 'fulfilled', index });
       }
@@ -118,37 +149,35 @@ async function runParallelCypress(): Promise<void> {
 
     const results: CypressResult[] = await Promise.all(promises);
 
-    let hasFailures: boolean = false;
+    let hasFailures = false;
     results.forEach((result) => {
       if (result.status === 'rejected') {
         hasFailures = true;
-        console.error(
-          `\nCypress process ${result.index + 1} failed with exit code ${result.code}.\n`
-        );
+        log(`Worker ${result.index + 1} had at least one failed run.`, {
+          type: 'error',
+          workerId: result.index + 1,
+        });
       } else {
-        console.log(`\nCypress process ${result.index + 1} succeeded.\n`);
+        log(`Worker ${result.index + 1} completed all runs successfully.`, {
+          type: 'info',
+          workerId: result.index + 1,
+        });
       }
     });
 
     if (hasFailures) {
-      console.error('\nOne or more Cypress processes failed.\n');
+      log('One or more workers failed.', { type: 'error' });
       process.exit(1);
     } else {
-      console.log('\nAll Cypress tests completed successfully.\n');
+      log('All tests completed successfully.', { type: 'info' });
       process.exit(0);
     }
   } else {
     // POLL=true: Polling Mode
-    console.log('Running in Polling Mode.\n');
+    log('Running in Polling Mode.', { type: 'info' });
     const queue: string[] = [...testFiles];
     const promises: Promise<CypressResult>[] = [];
 
-    /**
-     * Worker function that picks up test files from the queue and runs them.
-     * Each worker uses a unique display number.
-     * @param {number} workerIndex - The index of the worker.
-     * @returns {Promise<CypressResult>}
-     */
     const worker = async (workerIndex: number): Promise<CypressResult> => {
       let hasFailed = false;
 
@@ -171,10 +200,12 @@ async function runParallelCypress(): Promise<void> {
           display,
           COMMAND
         );
+
+        completedTests += 1;
+        logProgress();
+
         if (result.status === 'rejected') {
           hasFailed = true;
-          // Optionally, handle individual test failures here
-          // For now, just log and continue
         }
       }
 
@@ -185,7 +216,6 @@ async function runParallelCypress(): Promise<void> {
       };
     };
 
-    // Start WORKERS number of workers
     for (let i = 0; i < WORKERS; i++) {
       promises.push(worker(i));
     }
@@ -194,23 +224,32 @@ async function runParallelCypress(): Promise<void> {
 
     let hasFailures: boolean = false;
     results.forEach((result) => {
+      log(`NEM TUDOM ${results}`, { type: 'error' });
       if (result.status === 'rejected') {
         hasFailures = true;
-        console.error(
-          `\nWorker ${result.index + 1} had at least one failed Cypress run.\n`
-        );
+        log(`Worker ${result.index + 1} had at least one failed Cypress run.`, {
+          type: 'error',
+          workerId: result.index + 1,
+        });
       } else {
-        console.log(
-          `\nWorker ${result.index + 1} completed all Cypress runs successfully.\n`
+        log(
+          `Worker ${result.index + 1} completed all Cypress runs successfully.`,
+          {
+            type: 'info',
+            workerId: result.index + 1,
+          }
         );
       }
     });
 
+    log('kaki', { type: 'info' });
     if (hasFailures) {
-      console.error('\nOne or more Cypress workers failed.\n');
+      log('fos', { type: 'error' });
+      log('One or more Cypress workers failed.', { type: 'error' });
       process.exit(1);
     } else {
-      console.log('\nAll Cypress tests completed successfully.\n');
+      log('lol', { type: 'error' });
+      log('All Cypress tests completed successfully.', { type: 'info' });
       process.exit(0);
     }
   }
