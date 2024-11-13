@@ -18,28 +18,27 @@ async function log(message: string, options: LogOptions = {}): Promise<void> {
 
   // Dynamically import chalk
   const chalk = await import('chalk');
+  const workerPart = workerId !== undefined ? ` - Worker #${workerId} ` : '';
 
   // Prefix formatting based on type
   let prefix: string;
   switch (type) {
     case 'error':
-      prefix = chalk.default.red('cy-parallel(error)');
+      prefix = chalk.default.red(`cy-parallel(error)${workerPart}`);
       break;
     case 'success':
-      prefix = chalk.default.greenBright('cy-parallel(success)');
+      prefix = chalk.default.greenBright(`cy-parallel(success)${workerPart}`);
       break;
     case 'warn':
-      prefix = chalk.default.yellow('cy-parallel(warn)');
+      prefix = chalk.default.yellow(`cy-parallel(warn)${workerPart}`);
       break;
     case 'info':
     default:
-      prefix = chalk.default.blue('cy-parallel(info)');
+      prefix = chalk.default.blue(`cy-parallel(info)${workerPart}`);
       break;
   }
 
-  // Worker ID inclusion in log if provided
-  const workerPart = workerId !== undefined ? `Worker ${workerId} ` : '';
-  console.log(`${prefix}: ${workerPart}${message}`);
+  console.log(`${prefix}: ${message}`);
 }
 
 export { log };

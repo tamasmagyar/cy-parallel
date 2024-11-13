@@ -147,7 +147,7 @@ async function runParallelCypress(): Promise<void> {
           });
         } else {
           log(`completed all runs successfully.`, {
-            type: 'info',
+            type: 'success',
             workerId: result.index + 1,
           });
         }
@@ -179,7 +179,7 @@ async function runParallelCypress(): Promise<void> {
     const worker = async (workerIndex: number): Promise<CypressResult> => {
       log(`started.`, {
         type: 'info',
-        workerId: workerIndex,
+        workerId: workerIndex + 1,
       });
       let hasFailed = false;
 
@@ -251,7 +251,7 @@ async function runParallelCypress(): Promise<void> {
           });
         } else {
           log(`completed all Cypress runs successfully.`, {
-            type: 'info',
+            type: 'success',
             workerId: result.index + 1,
           });
         }
