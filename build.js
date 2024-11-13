@@ -1,13 +1,17 @@
 const esbuild = require('esbuild');
-const glob = require('glob'); // Install glob if you don't have it
+const glob = require('glob');
 
-// Get all TypeScript files in the src directory
-const entryPoints = glob.sync('./src/**/*.ts');
+const entryPoints = glob.sync('./src/**/*.ts').filter((file) => {
+  return !file.endsWith('.test.ts') && !file.endsWith('.spec.ts');
+});
 
 esbuild.build({
   entryPoints,
   bundle: true,
   platform: 'node',
-  outdir: 'dist', // This will output all files into dist folder
+  outdir: 'dist',
   banner: { js: '#!/usr/bin/env node' },
+  external: [
+    'typescript',
+  ],
 }).catch(() => process.exit(1));
