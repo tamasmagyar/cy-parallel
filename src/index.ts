@@ -1,4 +1,3 @@
-// #!/usr/bin/env node
 import process from 'process';
 import { validateDir, collectTestFiles } from './utils/fileUtils';
 import { getFileInfo } from './utils/weightUtils';
@@ -54,7 +53,7 @@ function getFileBucketsCustom(
       0
     );
     log(
-      `Bucket ${idx + 1}: ${bucket.length} test files, weight: ${totalWeight}`,
+      `Bucket ${idx + 1}: ${bucket.length} test file(s), weight: ${totalWeight}`,
       {
         type: 'info',
       }
@@ -99,6 +98,7 @@ async function runParallelCypress(): Promise<void> {
   if (!POLL) {
     // POLL=false: Weighted Bucketing Mode
     log('Running in Weighted Bucketing Mode.', { type: 'info' });
+
     const filesInfo: FileInfo[] = testFiles
       .map((file) => getFileInfo(file, BASE_WEIGHT, WEIGHT_PER_TEST))
       .filter((info): info is FileInfo => info !== null);
@@ -108,48 +108,67 @@ async function runParallelCypress(): Promise<void> {
       async (bucket, index) => {
         if (bucket.length > 0) {
           const display = BASE_DISPLAY_NUMBER + index;
-          log(
-            `Starting Cypress process ${index + 1} with ${bucket.length} test file(s).`,
-            {
-              type: 'info',
+          log(`Starting Cypress process with ${bucket.length} test file(s).`, {
+            type: 'info',
+            workerId: index + 1,
+          });
+          try {
+            await runCypress(bucket, index, display, COMMAND);
+            completedTests += bucket.length;
+            logProgress(); // Log progress here after bucket completion
+            log(`Cypress process completed successfully.`, {
+              type: 'success',
               workerId: index + 1,
-            }
-          );
-          const result = await runCypress(bucket, index, display, COMMAND);
-
-          completedTests += bucket.length;
-          logProgress(); // Log progress here after bucket completion
-
-          return result;
+            });
+            return { status: 'fulfilled', index } as CypressResult;
+          } catch (error) {
+            log(`Cypress process encountered an error: ${error}`, {
+              type: 'error',
+              workerId: index + 1,
+            });
+            return { status: 'rejected', index, code: 1 } as CypressResult;
+          }
         }
-        return Promise.resolve({ status: 'fulfilled', index });
+        // If bucket is empty, resolve as fulfilled
+        return { status: 'fulfilled', index } as CypressResult;
       }
     );
 
-    const results: CypressResult[] = await Promise.all(promises);
+    try {
+      const results: CypressResult[] = await Promise.all(promises);
 
-    let hasFailures = false;
-    results.forEach((result) => {
-      if (result.status === 'rejected') {
-        hasFailures = true;
-        log(`Worker ${result.index + 1} had at least one failed run.`, {
-          type: 'error',
-          workerId: result.index + 1,
-        });
+      let hasFailures = false;
+      results.forEach((result) => {
+        if (result.status === 'rejected') {
+          hasFailures = true;
+          log(`had at least one failed run.`, {
+            type: 'error',
+            workerId: result.index + 1,
+          });
+        } else {
+          log(`completed all runs successfully.`, {
+            type: 'info',
+            workerId: result.index + 1,
+          });
+        }
+      });
+
+      if (hasFailures) {
+        log('One or more workers failed.', { type: 'error' });
+        // Allow some time for logs to flush before exiting
+        setTimeout(() => process.exit(1), 100);
       } else {
-        log(`Worker ${result.index + 1} completed all runs successfully.`, {
-          type: 'info',
-          workerId: result.index + 1,
-        });
+        log('All tests completed successfully.', { type: 'success' });
+        // Allow some time for logs to flush before exiting
+        setTimeout(() => process.exit(0), 100);
       }
-    });
-
-    if (hasFailures) {
-      log('One or more workers failed.', { type: 'error' });
-      process.exit(1);
-    } else {
-      log('All tests completed successfully.', { type: 'info' });
-      process.exit(0);
+    } catch (overallError) {
+      log(
+        `An unexpected error occurred during Weighted Bucketing Mode execution: ${overallError}`,
+        { type: 'error' }
+      );
+      // Allow some time for logs to flush before exiting
+      setTimeout(() => process.exit(1), 100);
     }
   } else {
     // POLL=true: Polling Mode
@@ -158,6 +177,10 @@ async function runParallelCypress(): Promise<void> {
     const promises: Promise<CypressResult>[] = [];
 
     const worker = async (workerIndex: number): Promise<CypressResult> => {
+      log(`started.`, {
+        type: 'info',
+        workerId: workerIndex,
+      });
       let hasFailed = false;
 
       while (true) {
@@ -166,73 +189,100 @@ async function runParallelCypress(): Promise<void> {
         // Synchronize access to the queue
         if (queue.length > 0) {
           test = queue.shift();
+          log(`picked test: ${test}`, {
+            type: 'info',
+            workerId: workerIndex + 1,
+          });
         }
 
         if (!test) {
+          log(`found no more tests to run.`, {
+            type: 'info',
+            workerId: workerIndex,
+          });
           break; // Queue is empty
         }
 
         const display = BASE_DISPLAY_NUMBER + workerIndex;
-        const result = await runCypressSingle(
-          test,
-          workerIndex,
-          display,
-          COMMAND
-        );
-
-        completedTests += 1;
-        logProgress();
-
-        if (result.status === 'rejected') {
+        try {
+          await runCypressSingle(test, workerIndex, display, COMMAND);
+          completedTests += 1;
+          logProgress();
+          log(`completed test: ${test}`, {
+            type: 'info',
+            workerId: workerIndex + 1,
+          });
+        } catch (error) {
           hasFailed = true;
+          log(`encountered a failed Cypress run: ${error}`, {
+            type: 'error',
+            workerId: workerIndex + 1,
+          });
         }
       }
+
+      log(
+        `is finishing with status: ${hasFailed ? 'rejected' : 'fulfilled'}.`,
+        { type: 'info', workerId: workerIndex + 1 }
+      );
 
       return {
         status: hasFailed ? 'rejected' : 'fulfilled',
         index: workerIndex,
         code: hasFailed ? 1 : 0,
-      };
+      } as CypressResult;
     };
 
+    // Start all workers
     for (let i = 0; i < WORKERS; i++) {
       promises.push(worker(i));
     }
 
-    const results: CypressResult[] = await Promise.all(promises);
+    try {
+      const results: CypressResult[] = await Promise.all(promises);
 
-    let hasFailures: boolean = false;
-    results.forEach((result) => {
-      log(`NEM TUDOM ${results}`, { type: 'error' });
-      if (result.status === 'rejected') {
-        hasFailures = true;
-        log(`Worker ${result.index + 1} had at least one failed Cypress run.`, {
-          type: 'error',
-          workerId: result.index + 1,
-        });
-      } else {
-        log(
-          `Worker ${result.index + 1} completed all Cypress runs successfully.`,
-          {
+      let hasFailures = false;
+      results.forEach((result) => {
+        if (result.status === 'rejected') {
+          hasFailures = true;
+          log(`had at least one failed Cypress run.`, {
+            type: 'error',
+            workerId: result.index + 1,
+          });
+        } else {
+          log(`completed all Cypress runs successfully.`, {
             type: 'info',
             workerId: result.index + 1,
-          }
-        );
-      }
-    });
+          });
+        }
+      });
 
-    log('kaki', { type: 'info' });
-    if (hasFailures) {
-      log('fos', { type: 'error' });
-      log('One or more Cypress workers failed.', { type: 'error' });
-      process.exit(1);
-    } else {
-      log('lol', { type: 'error' });
-      log('All Cypress tests completed successfully.', { type: 'info' });
-      process.exit(0);
+      if (hasFailures) {
+        log('One or more Cypress workers failed.', { type: 'error' });
+        // Allow some time for logs to flush before exiting
+        setTimeout(() => process.exit(1), 100);
+      } else {
+        log('All Cypress tests completed successfully.', { type: 'success' });
+        // Allow some time for logs to flush before exiting
+        setTimeout(() => process.exit(0), 100);
+      }
+    } catch (overallError) {
+      log(
+        `An unexpected error occurred during Polling Mode execution: ${overallError}`,
+        { type: 'error' }
+      );
+      // Allow some time for logs to flush before exiting
+      setTimeout(() => process.exit(1), 100);
     }
   }
 }
 
 // Execute the script
 runParallelCypress();
+
+// Handle Unhandled Rejections
+process.on('unhandledRejection', (reason) => {
+  log(`Unhandled Rejection: ${reason}`, { type: 'error' });
+  // Allow some time for logs to flush before exiting
+  setTimeout(() => process.exit(1), 100);
+});

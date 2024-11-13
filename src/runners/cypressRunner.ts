@@ -1,6 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import { startXvfb } from '../utils/xvfb';
 import { log } from '../utils/logging';
+import { getConfig } from '../utils/envUtils';
 
 export interface CypressResult {
   status: 'fulfilled' | 'rejected';
@@ -23,6 +24,7 @@ export async function runCypress(
   command: string
 ): Promise<CypressResult> {
   try {
+    const { CYPRESS_LOG } = getConfig();
     const isLinux = process.platform === 'linux';
 
     // Start Xvfb only on Linux
@@ -45,7 +47,7 @@ export async function runCypress(
     const cypressProcess: ChildProcess = spawn(cypressCommand, {
       shell: true,
       env: env,
-      stdio: 'inherit', // Inherit stdio to show Cypress output in real-time
+      stdio: CYPRESS_LOG ? 'inherit' : 'ignore',
     });
 
     // Handle Cypress process completion
@@ -60,26 +62,23 @@ export async function runCypress(
     });
 
     if (exitCode !== 0) {
-      log(`Cypress process ${index + 1} failed with exit code ${exitCode}.`, {
+      log(`Cypress process failed with exit code ${exitCode}.`, {
         type: 'error',
         workerId: index + 1,
       });
       return { status: 'rejected', index, code: exitCode };
     } else {
-      log(`Cypress process ${index + 1} completed successfully.`, {
+      log(`Cypress process completed successfully.`, {
         type: 'success',
         workerId: index + 1,
       });
       return { status: 'fulfilled', index, code: exitCode };
     }
   } catch (error) {
-    log(
-      `There was a problem running Cypress process ${index + 1}. Error: ${error}`,
-      {
-        type: 'error',
-        workerId: index + 1,
-      }
-    );
+    log(`There was a problem running Cypress process. Error: ${error}`, {
+      type: 'error',
+      workerId: index + 1,
+    });
     return { status: 'rejected', index };
   }
 }

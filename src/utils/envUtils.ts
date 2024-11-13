@@ -9,6 +9,7 @@ export type Config = {
   POLL: boolean;
   BASE_DISPLAY_NUMBER: number;
   VERBOSE: boolean;
+  CYPRESS_LOG: boolean;
 };
 
 /**
@@ -55,5 +56,6 @@ export function getConfig(): Config {
     POLL: getEnvVar('POLL', false) as boolean,
     BASE_DISPLAY_NUMBER: getEnvVar('BASE_DISPLAY_NUMBER', 99),
     VERBOSE: getEnvVar('VERBOSE', true) as boolean,
+    CYPRESS_LOG: getEnvVar('CYPRESS_LOG', true) as boolean,
   };
 }
