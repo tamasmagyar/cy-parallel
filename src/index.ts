@@ -2,7 +2,6 @@ import process from 'process';
 import { validateDir, collectTestFiles } from './utils/fileUtils';
 import { getFileInfo } from './utils/weightUtils';
 import { runCypress } from './runners/cypressRunner';
-import { runCypressSingle } from './runners/cypressSingleRunner';
 import { FileInfo, CypressResult } from './types';
 import { log } from './utils/logging';
 import { getConfig } from './utils/envUtils';
@@ -65,6 +64,21 @@ function getFileBucketsCustom(
 }
 
 /**
+ * Helper function to create CypressResult objects.
+ * @param status - 'fulfilled' or 'rejected'
+ * @param index - Worker index
+ * @param code - Optional exit code
+ * @returns {CypressResult}
+ */
+function createCypressResult(
+  status: 'fulfilled' | 'rejected',
+  index: number,
+  code?: number
+): CypressResult {
+  return { status, index, code };
+}
+
+/**
  * Main function to orchestrate parallel Cypress test execution.
  */
 async function runParallelCypress(): Promise<void> {
@@ -113,24 +127,32 @@ async function runParallelCypress(): Promise<void> {
             workerId: index + 1,
           });
           try {
-            await runCypress(bucket, index, display, COMMAND);
-            completedTests += bucket.length;
-            logProgress(); // Log progress here after bucket completion
-            log(`Cypress process completed successfully.`, {
-              type: 'success',
-              workerId: index + 1,
-            });
-            return { status: 'fulfilled', index } as CypressResult;
+            const result = await runCypress(bucket, index, display, COMMAND);
+            if (result.status === 'fulfilled') {
+              completedTests += bucket.length;
+              logProgress(); // Log progress here after bucket completion
+              log(`Cypress process completed successfully.`, {
+                type: 'success',
+                workerId: index + 1,
+              });
+            } else {
+              log(`Cypress process failed with code ${result.code}.`, {
+                type: 'error',
+                workerId: index + 1,
+              });
+            }
+            return result;
           } catch (error) {
             log(`Cypress process encountered an error: ${error}`, {
               type: 'error',
               workerId: index + 1,
             });
-            return { status: 'rejected', index, code: 1 } as CypressResult;
+            // Explicitly return a CypressResult with status 'rejected'
+            return createCypressResult('rejected', index, 1);
           }
         }
         // If bucket is empty, resolve as fulfilled
-        return { status: 'fulfilled', index } as CypressResult;
+        return createCypressResult('fulfilled', index);
       }
     );
 
@@ -141,12 +163,12 @@ async function runParallelCypress(): Promise<void> {
       results.forEach((result) => {
         if (result.status === 'rejected') {
           hasFailures = true;
-          log(`had at least one failed run.`, {
+          log(`Worker ${result.index + 1} had at least one failed run.`, {
             type: 'error',
             workerId: result.index + 1,
           });
         } else {
-          log(`completed all runs successfully.`, {
+          log(`Worker ${result.index + 1} completed all runs successfully.`, {
             type: 'success',
             workerId: result.index + 1,
           });
@@ -177,7 +199,7 @@ async function runParallelCypress(): Promise<void> {
     const promises: Promise<CypressResult>[] = [];
 
     const worker = async (workerIndex: number): Promise<CypressResult> => {
-      log(`started.`, {
+      log(`Worker ${workerIndex + 1} started.`, {
         type: 'info',
         workerId: workerIndex + 1,
       });
@@ -189,48 +211,65 @@ async function runParallelCypress(): Promise<void> {
         // Synchronize access to the queue
         if (queue.length > 0) {
           test = queue.shift();
-          log(`picked test: ${test}`, {
-            type: 'info',
-            workerId: workerIndex + 1,
-          });
+          if (test) {
+            log(`Worker ${workerIndex + 1} picked test: ${test}`, {
+              type: 'info',
+              workerId: workerIndex + 1,
+            });
+          }
         }
 
         if (!test) {
-          log(`found no more tests to run.`, {
+          log(`Worker ${workerIndex + 1} found no more tests to run.`, {
             type: 'info',
-            workerId: workerIndex,
+            workerId: workerIndex + 1,
           });
           break; // Queue is empty
         }
 
         const display = BASE_DISPLAY_NUMBER + workerIndex;
         try {
-          await runCypressSingle(test, workerIndex, display, COMMAND);
-          completedTests += 1;
-          logProgress();
-          log(`completed test: ${test}`, {
-            type: 'info',
-            workerId: workerIndex + 1,
-          });
+          const result = await runCypress(
+            [test],
+            workerIndex,
+            display,
+            COMMAND
+          );
+          if (result.status === 'fulfilled') {
+            completedTests += 1;
+            logProgress();
+            log(`Worker ${workerIndex + 1} completed test: ${test}`, {
+              type: 'info',
+              workerId: workerIndex + 1,
+            });
+          } else {
+            hasFailed = true;
+            log(
+              `Worker ${workerIndex + 1} encountered a failed Cypress run with code ${result.code}.`,
+              { type: 'error', workerId: workerIndex + 1 }
+            );
+          }
         } catch (error) {
           hasFailed = true;
-          log(`encountered a failed Cypress run: ${error}`, {
-            type: 'error',
-            workerId: workerIndex + 1,
-          });
+          log(
+            `Worker ${workerIndex + 1} encountered a failed Cypress run: ${error}`,
+            { type: 'error', workerId: workerIndex + 1 }
+          );
         }
       }
 
       log(
-        `is finishing with status: ${hasFailed ? 'rejected' : 'fulfilled'}.`,
+        `Worker ${workerIndex + 1} is finishing with status: ${
+          hasFailed ? 'rejected' : 'fulfilled'
+        }.`,
         { type: 'info', workerId: workerIndex + 1 }
       );
 
-      return {
-        status: hasFailed ? 'rejected' : 'fulfilled',
-        index: workerIndex,
-        code: hasFailed ? 1 : 0,
-      } as CypressResult;
+      return createCypressResult(
+        hasFailed ? 'rejected' : 'fulfilled',
+        workerIndex,
+        hasFailed ? 1 : 0
+      );
     };
 
     // Start all workers
@@ -245,15 +284,15 @@ async function runParallelCypress(): Promise<void> {
       results.forEach((result) => {
         if (result.status === 'rejected') {
           hasFailures = true;
-          log(`had at least one failed Cypress run.`, {
-            type: 'error',
-            workerId: result.index + 1,
-          });
+          log(
+            `Worker ${result.index + 1} had at least one failed Cypress run.`,
+            { type: 'error', workerId: result.index + 1 }
+          );
         } else {
-          log(`completed all Cypress runs successfully.`, {
-            type: 'success',
-            workerId: result.index + 1,
-          });
+          log(
+            `Worker ${result.index + 1} completed all Cypress runs successfully.`,
+            { type: 'success', workerId: result.index + 1 }
+          );
         }
       });
 

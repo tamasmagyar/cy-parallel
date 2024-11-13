@@ -10,7 +10,7 @@ export interface CypressResult {
 }
 
 /**
- * Runs Cypress for a set of test files with a unique display.
+ * Runs Cypress for a set of test files.
  * @param {string[]} tests - Array of test file paths.
  * @param {number} index - Index of the parallel process.
  * @param {number} display - Display number for Xvfb.
@@ -37,10 +37,13 @@ export async function runCypress(
     };
 
     const testList: string = tests.join(',');
-    log(`Starting Cypress for the following tests:\n${testList}`, {
-      type: 'info',
-      workerId: index + 1,
-    });
+    log(
+      `Starting Cypress for the following test(s):\n${tests.map((test) => `- ${test}`).join('\n')}`,
+      {
+        type: 'info',
+        workerId: index + 1,
+      }
+    );
 
     const cypressCommand: string = `${command} --spec "${testList}"`;
     const cypressProcess: ChildProcess = spawn(cypressCommand, {
@@ -74,10 +77,13 @@ export async function runCypress(
       return { status: 'fulfilled', index, code: exitCode };
     }
   } catch (error) {
-    log(`There was a problem running Cypress process. Error: ${error}`, {
-      type: 'error',
-      workerId: index + 1,
-    });
+    log(
+      `There was a problem running Cypress process for worker ${index + 1}. Error: ${error}`,
+      {
+        type: 'error',
+        workerId: index + 1,
+      }
+    );
     return { status: 'rejected', index };
   }
 }

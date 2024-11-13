@@ -94,7 +94,7 @@ jobs:
         run: yarn install
 
       - name: Run Cypress tests in parallel (POLL=false)
-        run: yarn node dist/index.js
+        run: yarn build && yarn node dist/index.js
 
       - name: Generate report (POLL=false)
         run: yarn cy:report
@@ -122,7 +122,7 @@ jobs:
         run: yarn install
 
       - name: Run Cypress tests in parallel (POLL=true)
-        run: yarn node dist/index.js
+        run: yarn build && yarn node dist/index.js
 
       - name: Generate report (POLL=true)
         run: yarn cy:report
