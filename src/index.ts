@@ -79,13 +79,8 @@ async function runParallelCypress(): Promise<void> {
     BASE_DISPLAY_NUMBER,
   } = getConfig();
 
-  // Validate and resolve DIR
   const resolvedDir: string = validateDir(DIR);
-
-  // Step 1: Collect all test files in the specified directory
   const testFiles: string[] = collectTestFiles(resolvedDir);
-
-  // Track the total number of tests for progress indication
   const totalTests = testFiles.length;
   let completedTests = 0;
 
@@ -122,7 +117,6 @@ async function runParallelCypress(): Promise<void> {
           );
           const result = await runCypress(bucket, index, display, COMMAND);
 
-          // Increment completed tests after the whole bucket completes
           completedTests += bucket.length;
           logProgress(); // Log progress here after bucket completion
 

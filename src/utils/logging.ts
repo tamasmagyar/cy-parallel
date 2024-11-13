@@ -1,3 +1,5 @@
+import { getConfig } from './envUtils';
+
 // logging.ts
 type LogType = 'info' | 'error' | 'warn' | 'success';
 
@@ -8,6 +10,11 @@ interface LogOptions {
 
 async function log(message: string, options: LogOptions = {}): Promise<void> {
   const { workerId, type = 'info' } = options;
+  const { VERBOSE } = getConfig();
+
+  if (!VERBOSE) {
+    return;
+  }
 
   // Dynamically import chalk
   const chalk = await import('chalk');

@@ -8,6 +8,7 @@ export type Config = {
   COMMAND: string;
   POLL: boolean;
   BASE_DISPLAY_NUMBER: number;
+  VERBOSE: boolean;
 };
 
 /**
@@ -53,5 +54,6 @@ export function getConfig(): Config {
     COMMAND: getEnvVar('COMMAND', 'npx cypress run'),
     POLL: getEnvVar('POLL', false) as boolean,
     BASE_DISPLAY_NUMBER: getEnvVar('BASE_DISPLAY_NUMBER', 99),
+    VERBOSE: getEnvVar('VERBOSE', true) as boolean,
   };
 }
