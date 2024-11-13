@@ -1,6 +1,7 @@
 // src/utils/fileUtils.ts
 import fs from 'fs';
 import path from 'path';
+import { log } from './logging';
 
 /**
  * Resolves and validates the directory path.
@@ -16,11 +17,15 @@ export function validateDir(dir: string): string {
   try {
     stats = fs.statSync(resolvedPath);
     if (!stats.isDirectory()) {
-      console.error(`Error: Provided DIR is not a directory: ${resolvedPath}`);
+      log(`Provided DIR is not a directory: ${resolvedPath}`, {
+        type: 'error',
+      });
       process.exit(1);
     }
-  } catch (err) {
-    console.error(`Error accessing DIR directory: ${resolvedPath}`, err);
+  } catch (error) {
+    log(`Error accessing DIR directory: ${resolvedPath}. Error: ${error}`, {
+      type: 'error',
+    });
     process.exit(1);
   }
 
@@ -57,10 +62,14 @@ export function collectTestFiles(directory: string): string[] {
   const testFiles: string[] = getTestFiles(directory);
 
   if (testFiles.length === 0) {
-    console.error('No test files found in the provided DIR directory.');
+    log('No test files found in the provided DIR directory.', {
+      type: 'error',
+    });
     process.exit(1);
   }
 
-  console.log(`\nFound ${testFiles.length} test files in '${directory}'.\n`);
+  log(`Found ${testFiles.length} test files in '${directory}'.`, {
+    type: 'info',
+  });
   return testFiles;
 }

@@ -41,6 +41,7 @@
     "registry": "http://localhost:4873"
   },
   "dependencies": {
+    "chalk": "^5.3.0",
     "typescript": "^5.6.3"
   }
 }

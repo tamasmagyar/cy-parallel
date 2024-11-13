@@ -6,5 +6,5 @@ esbuild.build({
   platform: 'node',
   outdir: 'dist',
   banner: { js: '#!/usr/bin/env node' },
-  external: ['typescript'],
+  external: ['chalk', 'typescript'],
 }).catch(() => process.exit(1));
