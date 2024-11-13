@@ -1,5 +1,4 @@
 // #!/usr/bin/env node
-import os from 'os';
 import process from 'process';
 import { validateDir, collectTestFiles } from './utils/fileUtils';
 import { getFileInfo } from './utils/weightUtils';
@@ -7,6 +6,7 @@ import { runCypress } from './runners/cypressRunner';
 import { runCypressSingle } from './runners/cypressSingleRunner';
 import { FileInfo, CypressResult } from './types';
 import { log } from './utils/logging';
+import { getConfig } from './utils/envUtils';
 
 /**
  * Distributes test files into buckets to balance the total weight of each bucket.
@@ -69,30 +69,15 @@ function getFileBucketsCustom(
  * Main function to orchestrate parallel Cypress test execution.
  */
 async function runParallelCypress(): Promise<void> {
-  // Constants for weight calculation
-  const WEIGHT_PER_TEST: number = process.env.WEIGHT_PER_TEST
-    ? parseInt(process.env.WEIGHT_PER_TEST, 10)
-    : 1;
-  const BASE_WEIGHT: number = process.env.BASE_WEIGHT
-    ? parseInt(process.env.BASE_WEIGHT, 10)
-    : 1;
-
-  // Environment Variables
-  const maxCpuCores: number = os.cpus().length;
-  const WORKERS: number = Math.min(
-    process.env.WORKERS ? parseInt(process.env.WORKERS, 10) : maxCpuCores,
-    maxCpuCores
-  );
-  const DIR: string = process.env.DIR ? process.env.DIR : 'cypress/e2e';
-  const COMMAND: string = process.env.COMMAND
-    ? process.env.COMMAND
-    : 'npx cypress run';
-  const POLL: boolean = process.env.POLL === 'true';
-
-  // Base display number for Xvfb
-  const BASE_DISPLAY_NUMBER: number = process.env.BASE_DISPLAY_NUMBER
-    ? parseInt(process.env.BASE_DISPLAY_NUMBER, 10)
-    : 99;
+  const {
+    WEIGHT_PER_TEST,
+    BASE_WEIGHT,
+    WORKERS,
+    DIR,
+    COMMAND,
+    POLL,
+    BASE_DISPLAY_NUMBER,
+  } = getConfig();
 
   // Validate and resolve DIR
   const resolvedDir: string = validateDir(DIR);
