@@ -71,10 +71,6 @@ export default defineConfig({
 - generate html report
   `npx mochawesome-report-generator cypress/reports/merged-report.json -o cypress/reports/merged-html-report`
 
-```
-
-```
-
 # [Examples](#examples)
 
 ## [Basic Usage](#basic-usage)
