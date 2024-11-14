@@ -109,6 +109,11 @@ async function runParallelCypress(): Promise<void> {
     );
   }
 
+  if (totalTests === 0) {
+    log('No test files found. Exiting.', { type: 'info' });
+    process.exit(0);
+  }
+
   if (!POLL) {
     // POLL=false: Weighted Bucketing Mode
     log('Running in Weighted Bucketing Mode.', { type: 'info' });
@@ -118,43 +123,40 @@ async function runParallelCypress(): Promise<void> {
       .filter((info): info is FileInfo => info !== null);
 
     const testBuckets: string[][] = getFileBucketsCustom(WORKERS, filesInfo);
-    const promises: Promise<CypressResult>[] = testBuckets.map(
-      async (bucket, index) => {
-        if (bucket.length > 0) {
-          const display = BASE_DISPLAY_NUMBER + index;
-          log(`Starting Cypress process with ${bucket.length} test file(s).`, {
-            type: 'info',
-            workerId: index + 1,
-          });
-          try {
-            const result = await runCypress(bucket, index, display, COMMAND);
-            if (result.status === 'fulfilled') {
-              completedTests += bucket.length;
-              logProgress(); // Log progress here after bucket completion
-              log(`Cypress process completed successfully.`, {
-                type: 'success',
-                workerId: index + 1,
-              });
-            } else {
-              log(`Cypress process failed with code ${result.code}.`, {
-                type: 'error',
-                workerId: index + 1,
-              });
-            }
-            return result;
-          } catch (error) {
-            log(`Cypress process encountered an error: ${error}`, {
+    const promises: Promise<CypressResult>[] = testBuckets
+      .map((bucket, index) => ({ bucket, index }))
+      .filter(({ bucket }) => bucket.length > 0) // Only process non-empty buckets
+      .map(async ({ bucket, index }) => {
+        const display = BASE_DISPLAY_NUMBER + index;
+        log(`Starting Cypress process with ${bucket.length} test file(s).`, {
+          type: 'info',
+          workerId: index + 1,
+        });
+        try {
+          const result = await runCypress(bucket, index, display, COMMAND);
+          if (result.status === 'fulfilled') {
+            completedTests += bucket.length;
+            logProgress(); // Log progress here after bucket completion
+            log(`Cypress process completed successfully.`, {
+              type: 'success',
+              workerId: index + 1,
+            });
+          } else {
+            log(`Cypress process failed with code ${result.code}.`, {
               type: 'error',
               workerId: index + 1,
             });
-            // Explicitly return a CypressResult with status 'rejected'
-            return createCypressResult('rejected', index, 1);
           }
+          return result;
+        } catch (error) {
+          log(`Cypress process encountered an error: ${error}`, {
+            type: 'error',
+            workerId: index + 1,
+          });
+          // Explicitly return a CypressResult with status 'rejected'
+          return createCypressResult('rejected', index, 1);
         }
-        // If bucket is empty, resolve as fulfilled
-        return createCypressResult('fulfilled', index);
-      }
-    );
+      });
 
     try {
       const results: CypressResult[] = await Promise.all(promises);
@@ -195,6 +197,9 @@ async function runParallelCypress(): Promise<void> {
   } else {
     // POLL=true: Polling Mode
     log('Running in Polling Mode.', { type: 'info' });
+
+    // Adjust the number of workers to the minimum of WORKERS and totalTests
+    const numWorkers = Math.min(WORKERS, totalTests);
     const queue: string[] = [...testFiles];
     const promises: Promise<CypressResult>[] = [];
 
@@ -272,8 +277,8 @@ async function runParallelCypress(): Promise<void> {
       );
     };
 
-    // Start all workers
-    for (let i = 0; i < WORKERS; i++) {
+    // Start only the necessary number of workers
+    for (let i = 0; i < numWorkers; i++) {
       promises.push(worker(i));
     }
 
