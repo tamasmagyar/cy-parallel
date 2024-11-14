@@ -1,6 +1,6 @@
 {
   "name": "cy-parallel",
-  "version": "0.2.8",
+  "version": "1.0.0",
   "packageManager": "yarn@4.5.1",
   "main": "dist/index.js",
   "bin": "dist/index.js",
@@ -40,6 +40,24 @@
   "publishConfig": {
     "registry": "http://localhost:4873"
   },
+  "keywords": [
+    "cypress",
+    "parallel",
+    "parallelization",
+    "cypress-parallel",
+    "test-automation",
+    "end-to-end",
+    "e2e-testing",
+    "automated-testing",
+    "test-runner",
+    "continuous-integration",
+    "ci",
+    "devops",
+    "test-splitting",
+    "test-optimization",
+    "scalable-testing",
+    "automation-tool"
+  ],
   "dependencies": {
     "chalk": "^5.3.0",
     "typescript": "^5.6.3"
