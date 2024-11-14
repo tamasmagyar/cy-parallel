@@ -1,13 +1,9 @@
-// runCypress.test.ts
-
 import { runCypress, CypressResult } from './cypressRunner';
 import { spawn, ChildProcess } from 'child_process';
 import { startXvfb } from '../utils/xvfb';
 import { log } from '../utils/logging';
 import { getConfig } from '../utils/envUtils';
 import { EventEmitter } from 'events';
-
-// Jest provides automatic type definitions for Jest functions
 
 jest.mock('child_process', () => ({
   spawn: jest.fn(),
@@ -32,26 +28,19 @@ describe('runCypress', () => {
   const mockGetConfig = getConfig as jest.Mock;
 
   beforeEach(() => {
-    // Clear all mocks before each test
     jest.clearAllMocks();
   });
-
-  /**
-   * Helper function to create a mock ChildProcess using EventEmitter
-   */
   const createMockChildProcess = (
     exitCode: number | null = 0,
     error?: Error
   ): ChildProcess => {
     const emitter = new EventEmitter() as ChildProcess;
 
-    // Mock necessary ChildProcess properties and methods
     emitter.stdout = null;
     emitter.stderr = null;
     emitter.stdin = null;
     emitter.kill = jest.fn();
 
-    // Simulate process events
     process.nextTick(() => {
       if (error) {
         emitter.emit('error', error);
@@ -64,7 +53,6 @@ describe('runCypress', () => {
   };
 
   test('should run Cypress successfully with exit code 0', async () => {
-    // Arrange
     const tests = ['test1.spec.js', 'test2.spec.js'];
     const index = 0;
     const display = 99;
@@ -80,7 +68,6 @@ describe('runCypress', () => {
     const mockChildProcess = createMockChildProcess(0);
     mockSpawn.mockReturnValue(mockChildProcess);
 
-    // Act
     const result: CypressResult = await runCypress(
       tests,
       index,
@@ -88,7 +75,6 @@ describe('runCypress', () => {
       command
     );
 
-    // Assert
     expect(mockGetConfig).toHaveBeenCalledTimes(1);
     expect(mockStartXvfb).toHaveBeenCalledWith(display);
     expect(mockSpawn).toHaveBeenCalledWith(
@@ -127,7 +113,6 @@ describe('runCypress', () => {
   });
 
   test('should handle Cypress run with non-zero exit code', async () => {
-    // Arrange
     const tests = ['test1.spec.js'];
     const index = 1;
     const display = 100;
@@ -143,7 +128,6 @@ describe('runCypress', () => {
     const mockChildProcess = createMockChildProcess(1);
     mockSpawn.mockReturnValue(mockChildProcess);
 
-    // Act
     const result: CypressResult = await runCypress(
       tests,
       index,
@@ -151,7 +135,6 @@ describe('runCypress', () => {
       command
     );
 
-    // Assert
     expect(mockGetConfig).toHaveBeenCalledTimes(1);
     expect(mockStartXvfb).toHaveBeenCalledWith(display);
     expect(mockSpawn).toHaveBeenCalledWith(
@@ -190,7 +173,6 @@ describe('runCypress', () => {
   });
 
   test('should handle error during Cypress process spawning', async () => {
-    // Arrange
     const tests = ['test3.spec.js'];
     const index = 2;
     const display = 101;
@@ -208,7 +190,6 @@ describe('runCypress', () => {
     const mockChildProcess = createMockChildProcess(undefined, spawnError);
     mockSpawn.mockReturnValue(mockChildProcess);
 
-    // Act
     const result: CypressResult = await runCypress(
       tests,
       index,
@@ -216,7 +197,6 @@ describe('runCypress', () => {
       command
     );
 
-    // Assert
     expect(mockGetConfig).toHaveBeenCalledTimes(1);
     expect(mockStartXvfb).toHaveBeenCalledWith(display);
     expect(mockSpawn).toHaveBeenCalledWith(
@@ -254,7 +234,6 @@ describe('runCypress', () => {
   });
 
   test('should start Xvfb only on Linux environments', async () => {
-    // Arrange
     const tests = ['test4.spec.js'];
     const index = 3;
     const display = 102;
@@ -262,15 +241,12 @@ describe('runCypress', () => {
 
     mockGetConfig.mockReturnValue({
       CYPRESS_LOG: false,
-      IS_LINUX: false, // Non-Linux environment
+      IS_LINUX: false,
     });
-
-    // No need to mock startXvfb since IS_LINUX is false
 
     const mockChildProcess = createMockChildProcess(0);
     mockSpawn.mockReturnValue(mockChildProcess);
 
-    // Act
     const result: CypressResult = await runCypress(
       tests,
       index,
@@ -278,7 +254,6 @@ describe('runCypress', () => {
       command
     );
 
-    // Assert
     expect(mockGetConfig).toHaveBeenCalledTimes(1);
     expect(mockStartXvfb).not.toHaveBeenCalled();
 
@@ -317,7 +292,6 @@ describe('runCypress', () => {
   });
 
   test('should handle CYPRESS_LOG being true by setting stdio to inherit', async () => {
-    // Arrange
     const tests = ['test5.spec.js'];
     const index = 4;
     const display = 103;
@@ -333,7 +307,6 @@ describe('runCypress', () => {
     const mockChildProcess = createMockChildProcess(0);
     mockSpawn.mockReturnValue(mockChildProcess);
 
-    // Act
     const result: CypressResult = await runCypress(
       tests,
       index,
@@ -341,7 +314,6 @@ describe('runCypress', () => {
       command
     );
 
-    // Assert
     expect(mockGetConfig).toHaveBeenCalledTimes(1);
     expect(mockStartXvfb).toHaveBeenCalledWith(display);
     expect(mockSpawn).toHaveBeenCalledWith(
