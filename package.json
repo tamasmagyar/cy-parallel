@@ -15,6 +15,7 @@
     "test:watch": "jest --watch",
     "build": "node build.js",
     "bp": "yarn build && npm publish",
+    "test:e2e" : "yarn build && yarn node dist/index.js",
     "cy:report": "mochawesome-merge cypress/reports/*.json > cypress/reports/merged-report.json && npx mochawesome-report-generator cypress/reports/merged-report.json -o cypress/reports/merged-html-report"
   },
   "devDependencies": {
